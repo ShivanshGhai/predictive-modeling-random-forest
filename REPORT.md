@@ -11,6 +11,8 @@ Following the STAT 452/652 syllabus, I explored a range of linear, shrinkage, di
 
 ## 2. Models Evaluated
 
+This section addresses the question: **What models did I try to use for this problem?**
+
 The project compared methods from the course scope, including linear models, shrinkage methods, dimension-reduction approaches, and tree-based ensembles.
 
 ### Linear and Shrinkage Models
@@ -35,6 +37,8 @@ The project compared methods from the course scope, including linear models, shr
 
 ## 3. Model Evaluation
 
+This section addresses the question: **How did I evaluate and compare models?**
+
 Linear, shrinkage, dimension-reduction, and boosting methods were evaluated with **10-fold cross-validation**. For the manually tuned random forest, **out-of-bag (OOB) MSE** was used as the internal validation estimate.
 
 | Model | CV RMSE / MSE | Notes |
@@ -53,6 +57,8 @@ Linear, shrinkage, dimension-reduction, and boosting methods were evaluated with
 The manually tuned random forest outperformed the other candidate models and was therefore chosen as the final predictive model.
 
 ## 4. Parameter Tuning
+
+This section addresses the question: **If the method has tuning parameters, how were those parameters chosen?**
 
 ### Shrinkage Models
 
@@ -88,6 +94,8 @@ The final model used these values with `ntree = 1500`.
 GBM tuning considered interaction depth, shrinkage, number of trees, and minimum observations per node. Although GBM performed reasonably well, its best result was weaker than the tuned random forest.
 
 ## 5. Important Predictors
+
+This section addresses the question: **Did I identify unimportant predictors, and how many true predictors do I think there are?**
 
 Two primary tools informed the assessment of influential predictors:
 
@@ -139,7 +147,8 @@ write.table(
 )
 ```
 
+This output format matches the required one-column CSV with no row names and no column header.
+
 ## 7. Conclusion
 
 Across the evaluated models, the tuned **random forest** achieved the strongest predictive accuracy, outperforming linear, shrinkage, dimension-reduction, and boosting approaches. Its low OOB MSE and stable validation behavior made it the best choice for final predictions.
-

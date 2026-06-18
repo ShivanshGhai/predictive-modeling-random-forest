@@ -1,4 +1,4 @@
-# STAT 452/652 Predictive Modeling Project
+# STAT 452 Statistical Learning and Prediction Final Project
 
 This project compares several regression and machine learning methods for predicting a continuous response variable from 19 numeric predictors. The final selected model is a tuned random forest, chosen after comparing linear models, shrinkage methods, dimension-reduction methods, trees, random forests, and gradient boosting.
 

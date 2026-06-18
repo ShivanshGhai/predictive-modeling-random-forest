@@ -1,0 +1,690 @@
+---
+title: "STAT 452/652 Final Project Code"
+author: "Shivansh Ghai"
+format: html
+date: "December 4, 2025"
+editor: visual
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+# -------------------------------------------------------
+
+# BLOCK 1: Load data + basic structure checks
+
+# -------------------------------------------------------
+
+```{r}
+# 1. Load training + test predictor files
+train <- read.csv("training_data.csv")
+test  <- read.csv("test_predictors.csv")
+
+# 2. Basic structure
+cat("=== TRAIN STRUCTURE ===\n")
+str(train)
+
+cat("\n=== TEST STRUCTURE ===\n")
+str(test)
+
+# 3. Missing value check
+cat("\n=== MISSING VALUES (train) ===\n")
+print(colSums(is.na(train)))
+
+cat("\n=== MISSING VALUES (test) ===\n")
+print(colSums(is.na(test)))
+
+# 4. Summary statistics (quick view)
+cat("\n=== SUMMARY(train) ===\n")
+print(summary(train))
+
+# 5. Check that predictor names match
+cat("\n=== MATCHING PREDICTOR NAMES? ===\n")
+print(setequal(colnames(train)[-1], colnames(test)))
+```
+
+# -------------------------------------------------------
+
+# BLOCK 2: CV setup + baseline OLS regression
+
+# -------------------------------------------------------
+
+```{r}
+set.seed(452)
+
+# Libraries
+library(caret)
+library(glmnet)
+library(randomForest)
+library(gbm)
+
+# 1. Separate X and y
+X <- train[, grep("^X", names(train))]  # predictors only
+y <- train$Y                            # response
+
+# 2. Define cross-validation
+ctrl <- trainControl(
+  method = "cv",
+  number = 10
+)
+
+cat("=== Cross-validation setup complete ===\n\n")
+
+# 3. Fit baseline linear regression model
+cat("=== Fitting OLS model (no regularization) ===\n")
+ols_fit <- train(
+  x = X,
+  y = y,
+  method = "lm",
+  trControl = ctrl
+)
+
+print(ols_fit)
+
+# Display CV RMSE
+cat("\n=== OLS Cross-Validated RMSE ===\n")
+print(ols_fit$results$RMSE)
+```
+
+# -------------------------------------------------------
+
+# BLOCK 3: Ridge Regression (alpha = 0)
+
+# -------------------------------------------------------
+
+```{r}
+set.seed(452)
+
+# Grid of lambda values on a log scale
+ridge_grid <- expand.grid(
+  alpha = 0,
+  lambda = 10^seq(-3, 3, length = 50)
+)
+
+cat("=== Fitting Ridge Regression ===\n")
+
+ridge_fit <- train(
+  x = X,
+  y = y,
+  method = "glmnet",
+  trControl = ctrl,
+  tuneGrid = ridge_grid
+)
+
+# Print model summary
+print(ridge_fit)
+
+# Best tuning parameter
+cat("\n=== Best Ridge Lambda ===\n")
+print(ridge_fit$bestTune)
+
+# Cross-validated RMSE
+cat("\n=== Ridge CV RMSE (best) ===\n")
+best_rmse_ridge <- ridge_fit$results$RMSE[
+  ridge_fit$results$lambda 
+  == ridge_fit$bestTune$lambda]
+print(best_rmse_ridge)
+```
+
+# -------------------------------------------------------
+
+# BLOCK 4: Lasso Regression (alpha = 1)
+
+# -------------------------------------------------------
+
+```{r}
+set.seed(452)
+
+# Lasso grid of lambdas
+lasso_grid <- expand.grid(
+  alpha = 1,
+  lambda = 10^seq(-3, 3, length = 50)
+)
+
+cat("=== Fitting LASSO Regression ===\n")
+
+lasso_fit <- train(
+  x = X,
+  y = y,
+  method = "glmnet",
+  trControl = ctrl,
+  tuneGrid = lasso_grid
+)
+
+print(lasso_fit)
+
+# Best lambda
+cat("\n=== Best Lasso Lambda ===\n")
+print(lasso_fit$bestTune)
+
+# Best CV RMSE
+cat("\n=== Lasso CV RMSE (best) ===\n")
+best_rmse_lasso <- lasso_fit$results$RMSE[
+  lasso_fit$results$lambda == lasso_fit$bestTune$lambda
+]
+print(best_rmse_lasso)
+
+# Extract non-zero coefficients
+cat("\n=== Number of Non-Zero Coefficients ===\n")
+lasso_coefs <- coef(lasso_fit$finalModel, s 
+                    = lasso_fit$bestTune$lambda)
+print(sum(lasso_coefs != 0))   # includes intercept
+```
+
+# -------------------------------------------------------
+
+# BLOCK 5: Elastic Net Regression (α tuning)
+
+# -------------------------------------------------------
+
+```{r}
+set.seed(452)
+
+library(glmnet)
+
+X_mat <- as.matrix(train[, -which(names(train) 
+                                  == "Y")])
+y_vec <- train$Y
+
+# Candidate alpha values (mix between ridge & lasso)
+alpha_grid <- seq(0.1, 0.9, by = 0.2)
+
+en_results <- list()
+en_best <- list()
+en_mspe <- c()
+
+for (a in alpha_grid) {
+  cv_fit <- cv.glmnet(
+    x = X_mat,
+    y = y_vec,
+    alpha = a,
+    nfolds = 10
+  )
+  en_results[[as.character(a)]] <- cv_fit
+  en_mspe <- c(en_mspe, cv_fit$cvm[cv_fit$lambda 
+                                   == cv_fit$lambda.min])
+}
+
+names(en_mspe) <- paste0("alpha=", alpha_grid)
+
+cat("\n=== Elastic Net CV Errors ===\n")
+print(en_mspe)
+
+best_alpha <- alpha_grid[which.min(en_mspe)]
+best_alpha
+```
+
+# -------------------------------------------------------
+
+# BLOCK 6: Principal Components Regression (PCR)
+
+# -------------------------------------------------------
+
+```{r}
+set.seed(452)
+
+library(pls)
+
+pcr_fit <- pcr(
+  Y ~ .,
+  data = train,
+  scale = TRUE,
+  validation = "CV"
+)
+
+cat("\n=== PCR Cross-Validation Summary ===\n")
+summary(pcr_fit)
+
+# Select #components using CV
+validationplot(pcr_fit, val.type = "MSEP")
+```
+
+# -------------------------------------------------------
+
+# BLOCK 7: Partial Least Squares Regression (PLS)
+
+# -------------------------------------------------------
+
+```{r}
+set.seed(452)
+
+pls_fit <- plsr(
+  Y ~ .,
+  data = train,
+  scale = TRUE,
+  validation = "CV"
+)
+
+cat("\n=== PLS Cross-Validation Summary ===\n")
+summary(pls_fit)
+
+validationplot(pls_fit, val.type = "MSEP")
+```
+
+# -------------------------------------------------------
+
+# BLOCK 8: Natural Spline Model (df = 4 each predictor)
+
+# -------------------------------------------------------
+
+```{r}
+library(splines)
+
+set.seed(452)
+
+ns_formula <- as.formula(
+  paste("Y ~", paste(paste0("ns(", names(train)[names(train)!="Y"], ", df=4)"), 
+                     collapse=" + "))
+)
+
+ns_fit <- lm(ns_formula, data = train)
+
+cat("\n=== Natural Splines Model Summary ===\n")
+print(summary(ns_fit))
+```
+
+# -------------------------------------------------------
+
+# BLOCK 9: Smoothing Spline Model (via GAM)
+
+# -------------------------------------------------------
+
+```{r}
+set.seed(452)
+library(gam)
+
+smooth_formula <- as.formula(
+  paste("Y ~", paste(paste0("s(", 
+                            names(train)[names(train)!=
+                                           "Y"], ")"), collapse=" + ")))
+ss_fit <- gam(smooth_formula, data = train)
+cat("\n=== Smoothing Spline GAM Summary ===\n")
+print(summary(ss_fit))
+cat("\n=== Smoothing Spline GAM Summary ===\n")
+print(summary(ss_fit))
+```
+
+# -------------------------------------------------------
+
+# BLOCK 10: Regression Tree (rpart)
+
+# -------------------------------------------------------
+
+```{r}
+library(rpart)
+library(rpart.plot)
+
+set.seed(452)
+
+tree_fit <- rpart(
+  Y ~ .,
+  data = train,
+  method = "anova",
+  cp = 0.001
+)
+
+cat("\n=== Regression Tree Summary ===\n")
+printcp(tree_fit)
+
+rpart.plot(tree_fit)
+```
+
+# -------------------------------------------------------
+
+# BLOCK 11: Random Forest
+
+# -------------------------------------------------------
+
+```{r}
+set.seed(452)
+
+rf_grid <- expand.grid(
+  mtry = c(3, 5, 7, 9, 11)   # try varying # of variables per split
+)
+
+cat("=== Fitting Random Forest ===\n")
+
+rf_fit <- train(
+  x = X,
+  y = y,
+  method = "rf",
+  trControl = ctrl,
+  tuneGrid = rf_grid,
+  importance = TRUE,
+  ntree = 500   # solid default
+)
+
+print(rf_fit)
+
+# Best mtry
+cat("\n=== Best mtry ===\n")
+print(rf_fit$bestTune)
+
+# Best RMSE
+cat("\n=== RF CV RMSE (best) ===\n")
+best_rmse_rf <- rf_fit$results$RMSE[
+  rf_fit$results$mtry == rf_fit$bestTune$mtry]
+print(best_rmse_rf)
+
+# Variable importance
+imp <- varImp(rf_fit)
+
+cat("=== Variable Importance Structure ===\n")
+print(str(imp))
+
+# Extract the importance matrix correctly
+imp_mat <- imp$importance
+
+# Order by importance
+ordered <- imp_mat[order(-imp_mat[ ,1]), , drop = FALSE]
+
+cat("\n=== TOP 10 MOST IMPORTANT VARIABLES ===\n")
+print(ordered[1:10, , drop = FALSE])
+```
+
+# -------------------------------------------------------
+
+# BLOCK 12: Gradient Boosting Machine (GBM)
+
+# -------------------------------------------------------
+
+```{r}
+set.seed(452)
+
+gbm_grid <- expand.grid(
+  n.trees = c(300, 600, 1000),
+  interaction.depth = c(1, 3, 5),
+  shrinkage = c(0.01, 0.05),
+  n.minobsinnode = 10
+)
+
+cat("=== Fitting Gradient Boosting Model (GBM) ===\n")
+
+gbm_fit <- train(
+  x = X,
+  y = y,
+  method = "gbm",
+  trControl = ctrl,
+  verbose = FALSE,
+  tuneGrid = gbm_grid
+)
+
+print(gbm_fit)
+
+# Best parameters
+cat("\n=== Best GBM Parameters ===\n")
+print(gbm_fit$bestTune)
+
+# Best RMSE
+cat("\n=== GBM CV RMSE (best) ===\n")
+best_rmse_gbm <- gbm_fit$results$RMSE[
+  gbm_fit$results$n.trees == gbm_fit$bestTune$n.trees &
+    gbm_fit$results$interaction.depth ==
+    gbm_fit$bestTune$interaction.depth &
+    gbm_fit$results$shrinkage == 
+    gbm_fit$bestTune$shrinkage
+]
+print(best_rmse_gbm)
+```
+
+# -------------------------------------------------------
+
+# BLOCK 13: Tuned Regression Tree (cp via 1-SE rule)
+
+# -------------------------------------------------------
+
+```{r}
+set.seed(452)
+
+tree_base <- rpart(
+  Y ~ .,
+  data   = train,
+  method = "anova",
+  cp     = 0.001
+)
+
+cat("\n=== Base Regression Tree CP Table ===\n")
+cp_table <- tree_base$cptable   # <-- FIXED
+print(cp_table)
+
+# Minimum xerror row
+min_row  <- which.min(cp_table[, "xerror"])
+xerr_min <- cp_table[min_row, "xerror"]
+xerr_se  <- cp_table[min_row, "xstd"]
+
+# 1-SE rule: smallest tree whose xerror <= min + 1 SE
+cp_1se <- cp_table[cp_table[, "xerror"] <= xerr_min 
+                   + xerr_se, ][1, "CP"]
+
+cat("\nChosen cp (1-SE rule):", cp_1se, "\n")
+
+tree_tuned <- prune(tree_base, cp = cp_1se)
+
+# Training MSPE
+tree_pred_train <- predict(tree_tuned, newdata = train)
+tree_mspe_train <- mean((train$Y - tree_pred_train)^2)
+
+cat("\n=== Tuned Regression Tree Training MSPE ===\n")
+print(tree_mspe_train)
+```
+
+# -------------------------------------------------------
+
+# BLOCK 14: Tuned Random Forest (mtry × nodesize grid)
+
+# -------------------------------------------------------
+
+```{r}
+set.seed(452)
+library(randomForest)
+
+X <- train[, -which(names(train) == "Y")]
+y <- train$Y
+
+p <- ncol(X)
+
+mtry_grid     <- c(round(sqrt(p)), 11, round(p/2))  
+# e.g. 4–5, 11, 9–10
+nodesize_grid <- c(2, 5, 10)
+
+rf_grid <- expand.grid(
+  mtry     = mtry_grid,
+  nodesize = nodesize_grid
+)
+
+rf_results <- data.frame(
+  mtry     = integer(),
+  nodesize = integer(),
+  OOB_MSE  = double()
+)
+
+for (i in seq_len(nrow(rf_grid))) {
+  m  <- rf_grid$mtry[i]
+  ns <- rf_grid$nodesize[i]
+  
+  rf_fit <- randomForest(
+    x         = X,
+    y         = y,
+    mtry      = m,
+    nodesize  = ns,
+    ntree     = 500,
+    importance = FALSE
+  )
+  
+  oob_mse <- tail(rf_fit$mse, 1)  # last OOB MSE
+  
+  rf_results <- rbind(
+    rf_results,
+    data.frame(mtry = m, nodesize = ns, OOB_MSE = oob_mse)
+  )
+  
+  cat("Finished RF combo:", "mtry =", m, ", 
+      nodesize =", ns,
+      ", OOB MSE =", round(oob_mse, 3), "\n")
+}
+
+cat("\n=== Random Forest Tuning Results ===\n")
+print(rf_results)
+
+best_idx          <- which.min(rf_results$OOB_MSE)
+best_rf_settings  <- rf_results[best_idx, ]
+
+cat("\n=== Best RF Settings ===\n")
+print(best_rf_settings)
+
+best_mtry     <- best_rf_settings$mtry
+best_nodesize <- best_rf_settings$nodesize
+```
+
+# -------------------------------------------------------
+
+# BLOCK 15: Fully Tuned Gradient Boosting (GBM grid)
+
+# -------------------------------------------------------
+
+```{r}
+library(gbm)
+
+set.seed(452)
+
+gbm_grid <- expand.grid(
+  interaction.depth = c(2, 3, 4),
+  n.minobsinnode    = c(10, 30)
+)
+
+gbm_results <- data.frame(
+  depth     = integer(),
+  nmin      = integer(),
+  best_iter = integer(),
+  cv_mse    = double()
+)
+
+for (i in seq_len(nrow(gbm_grid))) {
+  d   <- gbm_grid$interaction.depth[i]
+  nmn <- gbm_grid$n.minobsinnode[i]
+  
+  cat("\n--- Fitting GBM combo", i,
+      ": depth =", d, ", n.minobsinnode =", 
+      nmn, " ---\n")
+  
+  gbm_fit <- gbm(
+    formula           = Y ~ .,
+    data              = train,
+    distribution      = "gaussian",
+    n.trees           = 3000,
+    interaction.depth = d,
+    shrinkage         = 0.01,
+    n.minobsinnode    = nmn,
+    bag.fraction      = 0.5,
+    train.fraction    = 1.0,
+    cv.folds          = 5,
+    n.cores           = 1,
+    verbose           = FALSE
+  )
+  
+  best_iter <- gbm.perf(gbm_fit, method = "cv", 
+                        plot.it = FALSE)
+  best_mse  <- gbm_fit$cv.error[best_iter]
+  
+  gbm_results <- rbind(
+    gbm_results,
+    data.frame(
+      depth     = d,
+      nmin      = nmn,
+      best_iter = best_iter,
+      cv_mse    = best_mse
+    )
+  )
+  
+  cat("Best iter:", best_iter, " | CV MSE:", 
+      round(best_mse, 3), "\n")
+}
+
+cat("\n=== GBM Tuning Results ===\n")
+print(gbm_results)
+
+best_gbm_idx      <- which.min(gbm_results$cv_mse)
+best_gbm_settings <- gbm_results[best_gbm_idx, ]
+
+cat("\n=== Best GBM Settings ===\n")
+print(best_gbm_settings)
+```
+
+# -------------------------------------------------------
+
+# Comparison
+
+# -------------------------------------------------------
+
+```{r}
+model_perf <- data.frame(
+  model  = c("OLS", "Ridge", "LASSO", 
+             paste0("ElasticNet (alpha=", best_alpha, ")"),
+             "RF (caret)", "RF (manual)", 
+             "GBM (caret)", "GBM (manual)"),
+  RMSE   = c(
+    ols_fit$results$RMSE,
+    best_rmse_ridge,
+    best_rmse_lasso,
+    sqrt(min(en_mspe)),                # ENet MSE → RMSE
+    best_rmse_rf,
+    sqrt(min(rf_results$OOB_MSE)),     # manual RF OOB RMSE
+    best_rmse_gbm,
+    sqrt(min(gbm_results$cv_mse))      # manual GBM RMSE
+  )
+)
+
+cat("\n=== MODEL COMPARISON TABLE ===\n")
+print(model_perf[order(model_perf$RMSE), ])
+```
+
+# -------------------------------------------------------
+
+# FINAL MODEL SCRIPT
+
+# Random Forest (mtry = 11, ntree = 500)
+
+# -------------------------------------------------------
+
+```{r}
+set.seed(452)
+
+# 1. Load libraries
+library(randomForest)
+
+# 2. Load training + test data
+train <- read.csv("training_data.csv")
+test  <- read.csv("test_predictors.csv")
+
+# 3. Prepare X and y
+X <- train[ , grep("^X", names(train))]
+y <- train$Y
+
+# 4. Fit the Final Random Forest on FULL training data
+final_rf <- randomForest(
+  x        = X,
+  y        = y,
+  mtry     = best_mtry,
+  ntree    = 1500,      # see Refinement #2 below
+  nodesize = best_nodesize,
+  importance = TRUE
+)
+
+cat("=== Final Model Fit Complete ===\n")
+print(final_rf)
+
+# 5. Predict on the TEST set
+final_predictions <- predict(final_rf, newdata = test)
+
+# 6. Save predictions EXACTLY in required format
+write.table(
+  final_predictions,
+  "my_predictions.csv",
+  sep = ",",
+  row.names = FALSE,
+  col.names = FALSE
+)
+
+cat("\n=== Predictions Saved to my_predictions.csv ===\n")
+```

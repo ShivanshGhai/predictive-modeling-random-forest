@@ -1,0 +1,26 @@
+# macOS metadata
+.DS_Store
+
+# R session/history files
+.RData
+.Rhistory
+.Rproj.user/
+
+# Quarto/R Markdown generated output
+*_files/
+*.html
+*.tex
+*.log
+*.aux
+*.out
+
+# Generated plots and reports
+Rplot*.png
+*.pdf
+
+# Course-provided or generated data
+training_data.csv
+test_predictors.csv
+my_predictions.csv
+final_predictions.csv
+

@@ -1,0 +1,160 @@
+---
+title: "STAT 452/652 Final Project Report"
+author: "Shivansh Ghai"
+date: "December 4, 2025"
+format: html
+---
+
+# 1. Introduction
+The purpose of this project is to build an accurate predictive model for a continuous response **Y** using a training dataset of 20,000 observations and approximately 19 numeric predictors (X1–X19). A separate test dataset containing only predictor values was provided. The goal was to generate predictions that minimize the **Mean Squared Prediction Error (MSPE)**, evaluated by the instructor.
+
+Following the STAT 452/652 syllabus, I explored a wide range of linear, shrinkage, dimension‑reduction, and ensemble methods. After comprehensive tuning and model comparison, a **Random Forest with mtry = 11 and nodesize = 2** achieved the strongest out‑of‑sample predictive performance and was selected as the final model.
+
+# 2. What models did I try to use for this problem?
+All models used fall strictly within the scope of STAT 452/652 (Lectures 1–15). They include:
+
+## **Linear and Shrinkage Models**
+- **Ordinary Least Squares (OLS)**
+- **Ridge Regression**
+- **LASSO Regression**
+- **Elastic Net Regression**
+
+## **Dimension‑Reduction Approaches**
+- **Principal Components Regression (PCR)**
+- **Partial Least Squares (PLS)**
+
+## **Tree‑Based and Ensemble Methods**
+- **Regression Trees (rpart)**
+- **Random Forest (caret implementation)**
+- **Random Forest (manual tuning using OOB error)**
+- **Gradient Boosting Machines (manual gbm)**
+- **Gradient Boosting Machines (caret implementation)**
+
+These models align with all material covered up to Lecture 15 and represent the full range of predictive tools recommended in the project instructions.
+
+```{r, eval=FALSE}
+# Example: OLS model
+ols_fit <- train(Y ~ ., data = train, method = "lm", trControl = ctrl)
+```
+
+# 3. How did I evaluate and compare models?
+All linear, shrinkage, and boosting methods were evaluated using **10‑fold cross‑validation**, as recommended in class. For Random Forest, **Out‑of‑Bag (OOB) MSE** was used, which serves as an internal cross‑validation estimate.
+
+### **Summary of Model Performance (Based on Code Output)**
+| Model | CV RMSE / MSE | Notes |
+|-------|---------------|-------|
+| OLS | ~5.19 RMSE | Baseline |
+| Ridge | ~5.22 RMSE | Slightly worse |
+| LASSO | ~5.19 RMSE | Comparable to OLS |
+| Elastic Net | ~26 MSE | Not competitive |
+| PCR | ~5.19 RMSE | No improvement |
+| PLS | ~5.19 RMSE | Similar |
+| Regression Tree | ~26 MSE | Underfits |
+| **Random Forest (caret)** | **4.01 RMSE** | Strong performer |
+| **Tuned Random Forest (OOB)** | **15.84 MSE (~3.98 RMSE)** | **Best overall** |
+| GBM (caret) | 4.44 RMSE | Good but weaker |
+
+The manually tuned **Random Forest** clearly outperformed all other models and therefore was chosen as the final predictive model.
+
+```{r, eval=FALSE}
+ctrl <- trainControl(method = "cv", number = 10)
+```
+
+# 4. How did I choose those parameters?
+Tuning procedures followed the course methods covered through Lecture 15.
+
+## **Shrinkage Models**
+Ridge, LASSO, and Elastic Net were tuned over grids of **lambda** (and **alpha** for Elastic Net) using 10‑fold CV. Best values were selected based on minimum RMSE.
+
+## **PCR / PLS**
+Each method used cross‑validation to determine the optimal number of components via RMSEP curves.
+
+## **Regression Trees**
+The base rpart model was pruned using the **1‑SE rule**, selecting a simpler subtree with the smallest cross‑validated error plus one standard error.
+
+## **Random Forest (caret)**
+A CV tuning grid evaluated mtry ∈ {3, 5, 7, 9, 11}. The best CV RMSE occurred at **mtry = 11**.
+
+## **Random Forest (manual tuning)**
+A more exhaustive grid search evaluated combinations of **mtry** and **nodesize** using OOB MSE. The optimal values were:
+- **mtry = 11**
+- **nodesize = 2**
+
+These were stored programmatically:
+
+```{r, eval=FALSE}
+best_mtry <- 11
+best_nodesize <- 2
+```
+
+These stored values were then inserted directly into the final model‑fitting code block to ensure perfect reproducibility:
+
+```{r, eval=FALSE}
+final_rf <- randomForest(
+  x = X,
+  y = y,
+  mtry = best_mtry,
+  ntree = 1500,
+  nodesize = best_nodesize,
+  importance = TRUE
+)
+```
+
+## **Gradient Boosting (GBM)**
+Both manual and caret implementations tested combinations of:
+- Interaction depth
+- Shrinkage values
+- Number of trees
+- Minimum observations per node
+
+Despite good performance (~4.44 RMSE), GBM was inferior to the tuned Random Forest.
+
+# 5. How many true predictors do I think there are?
+Two primary tools were used:
+- **LASSO coefficient paths** (variables shrunk to 0)
+- **Random Forest importance scores**
+
+LASSO retained 17 predictors, though several had negligible magnitude. Random Forest importance plots revealed a smaller core set driving prediction, including: **X11, X13, X1, X8, X12, X5, X15, X9, X19**.
+
+Combining both sources, a reasonable estimate is that **8–12 predictors** are truly influential in generating Y.
+
+# 6. Final Model and Test Predictions
+Below is the exact final model used to generate predictions in the required format:
+
+```{r, eval=FALSE}
+set.seed(452)
+library(randomForest)
+
+train <- read.csv("training_data.csv")
+test  <- read.csv("test_predictors.csv")
+
+X <- train[, grep("^X", names(train))]
+y <- train$Y
+
+best_mtry <- 11
+best_nodesize <- 2
+
+final_rf <- randomForest(
+  x = X,
+  y = y,
+  mtry = best_mtry,
+  ntree = 1500,
+  nodesize = best_nodesize,
+  importance = TRUE
+)
+
+final_predictions <- predict(final_rf, newdata = test)
+
+write.table(
+  final_predictions,
+  "my_predictions.csv",
+  sep = ",",
+  row.names = FALSE,
+  col.names = FALSE
+)
+```
+
+This code produces the exact predictions submitted.
+
+# 7. Conclusion
+Across all evaluated methods, the tuned **Random Forest** achieved the strongest predictive accuracy, outperforming linear, shrinkage, dimension‑reduction, and boosting approaches. Its low OOB MSE and stable CV behavior made it the best choice for final predictions. The modeling process adhered strictly to STAT 452/652 methodology, and the final `.qmd` file guarantees full reproducibility of results.

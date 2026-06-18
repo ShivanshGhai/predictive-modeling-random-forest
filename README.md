@@ -6,15 +6,20 @@ This project compares several regression and machine learning methods for predic
 
 The tuned random forest was the strongest model overall, with an out-of-bag error of approximately `15.84 MSE`, equivalent to about `3.98 RMSE`. The next-best tree-based alternatives were weaker, including the caret random forest at about `4.01 RMSE` and GBM at about `4.44 RMSE`.
 
-The main result is available in the sanitized project report:
+The main result is available in the Markdown report, which previews directly on GitHub:
 
-- [Project Report](output/pdf/project-report.pdf)
+- [Project Report](REPORT.md)
+
+A sanitized PDF version is also included as a downloadable artifact:
+
+- [Project Report PDF](output/pdf/project-report.pdf)
 
 ## Project Contents
 
 - `finalcode.qmd`: Full reproducible Quarto analysis with model fitting, tuning, comparison, and final prediction generation.
 - `projectcode.R`: R script version of the modeling workflow.
 - `report.qmd`: Written project report summarizing the modeling approach and results.
+- `REPORT.md`: GitHub-readable version of the final report.
 
 ## Methods Used
 

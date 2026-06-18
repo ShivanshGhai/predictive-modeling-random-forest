@@ -2,6 +2,14 @@
 
 This project compares several regression and machine learning methods for predicting a continuous response variable from 19 numeric predictors. The final selected model is a tuned random forest, chosen after comparing linear models, shrinkage methods, dimension-reduction methods, trees, random forests, and gradient boosting.
 
+## Results Summary
+
+The tuned random forest was the strongest model overall, with an out-of-bag error of approximately `15.84 MSE`, equivalent to about `3.98 RMSE`. The next-best tree-based alternatives were weaker, including the caret random forest at about `4.01 RMSE` and GBM at about `4.44 RMSE`.
+
+The main result is available in the sanitized project report:
+
+- [Project Report](output/pdf/project-report.pdf)
+
 ## Project Contents
 
 - `finalcode.qmd`: Full reproducible Quarto analysis with model fitting, tuning, comparison, and final prediction generation.
@@ -68,4 +76,3 @@ source("projectcode.R")
 ```
 
 The final prediction file is written as `my_predictions.csv`.
-

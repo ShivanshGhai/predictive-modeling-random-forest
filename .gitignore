@@ -13,14 +13,15 @@
 *.log
 *.aux
 *.out
+tmp/
 
 # Generated plots and reports
 Rplot*.png
 *.pdf
+!output/pdf/project-report.pdf
 
 # Course-provided or generated data
 training_data.csv
 test_predictors.csv
 my_predictions.csv
 final_predictions.csv
-
